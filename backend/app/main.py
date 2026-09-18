@@ -12,8 +12,7 @@ from app.models import (
     Note,
 )
 
-from app.routes import users, patterns, problems
-
+from app.routes import users, patterns, problems, submissions
 
 Base.metadata.create_all(bind=engine)
 
@@ -23,7 +22,7 @@ app = FastAPI(title="CodeX API")
 app.include_router(users.router)
 app.include_router(patterns.router)
 app.include_router(problems.router)
-
+app.include_router(submissions.router)
 
 @app.get("/")
 def root():
