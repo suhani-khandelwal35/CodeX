@@ -1,0 +1,415 @@
+[
+  {
+    "title": "Two Sum II - Input Array Is Sorted",
+    "platform": "LeetCode",
+    "external_id": "167",
+    "url": "https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/",
+    "difficulty": "Easy",
+    "pattern": "Two Pointers"
+  },
+  {
+    "title": "Valid Palindrome",
+    "platform": "LeetCode",
+    "external_id": "125",
+    "url": "https://leetcode.com/problems/valid-palindrome/",
+    "difficulty": "Easy",
+    "pattern": "Two Pointers"
+  },
+  {
+    "title": "3Sum",
+    "platform": "LeetCode",
+    "external_id": "15",
+    "url": "https://leetcode.com/problems/3sum/",
+    "difficulty": "Medium",
+    "pattern": "Two Pointers"
+  },
+  {
+    "title": "Container With Most Water",
+    "platform": "LeetCode",
+    "external_id": "11",
+    "url": "https://leetcode.com/problems/container-with-most-water/",
+    "difficulty": "Medium",
+    "pattern": "Two Pointers"
+  },
+  {
+    "title": "Remove Duplicates from Sorted Array",
+    "platform": "LeetCode",
+    "external_id": "26",
+    "url": "https://leetcode.com/problems/remove-duplicates-from-sorted-array/",
+    "difficulty": "Easy",
+    "pattern": "Two Pointers"
+  },
+
+  {
+    "title": "Maximum Average Subarray I",
+    "platform": "LeetCode",
+    "external_id": "643",
+    "url": "https://leetcode.com/problems/maximum-average-subarray-i/",
+    "difficulty": "Easy",
+    "pattern": "Sliding Window"
+  },
+  {
+    "title": "Longest Substring Without Repeating Characters",
+    "platform": "LeetCode",
+    "external_id": "3",
+    "url": "https://leetcode.com/problems/longest-substring-without-repeating-characters/",
+    "difficulty": "Medium",
+    "pattern": "Sliding Window"
+  },
+  {
+    "title": "Minimum Size Subarray Sum",
+    "platform": "LeetCode",
+    "external_id": "209",
+    "url": "https://leetcode.com/problems/minimum-size-subarray-sum/",
+    "difficulty": "Medium",
+    "pattern": "Sliding Window"
+  },
+  {
+    "title": "Permutation in String",
+    "platform": "LeetCode",
+    "external_id": "567",
+    "url": "https://leetcode.com/problems/permutation-in-string/",
+    "difficulty": "Medium",
+    "pattern": "Sliding Window"
+  },
+  {
+    "title": "Minimum Window Substring",
+    "platform": "LeetCode",
+    "external_id": "76",
+    "url": "https://leetcode.com/problems/minimum-window-substring/",
+    "difficulty": "Hard",
+    "pattern": "Sliding Window"
+  },
+
+  {
+    "title": "Binary Search",
+    "platform": "LeetCode",
+    "external_id": "704",
+    "url": "https://leetcode.com/problems/binary-search/",
+    "difficulty": "Easy",
+    "pattern": "Binary Search"
+  },
+  {
+    "title": "Search Insert Position",
+    "platform": "LeetCode",
+    "external_id": "35",
+    "url": "https://leetcode.com/problems/search-insert-position/",
+    "difficulty": "Easy",
+    "pattern": "Binary Search"
+  },
+  {
+    "title": "Find First and Last Position of Element in Sorted Array",
+    "platform": "LeetCode",
+    "external_id": "34",
+    "url": "https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/",
+    "difficulty": "Medium",
+    "pattern": "Binary Search"
+  },
+  {
+    "title": "Search in Rotated Sorted Array",
+    "platform": "LeetCode",
+    "external_id": "33",
+    "url": "https://leetcode.com/problems/search-in-rotated-sorted-array/",
+    "difficulty": "Medium",
+    "pattern": "Binary Search"
+  },
+  {
+    "title": "Koko Eating Bananas",
+    "platform": "LeetCode",
+    "external_id": "875",
+    "url": "https://leetcode.com/problems/koko-eating-bananas/",
+    "difficulty": "Medium",
+    "pattern": "Binary Search"
+  },
+
+  {
+    "title": "Contains Duplicate",
+    "platform": "LeetCode",
+    "external_id": "217",
+    "url": "https://leetcode.com/problems/contains-duplicate/",
+    "difficulty": "Easy",
+    "pattern": "Hashing"
+  },
+  {
+    "title": "Valid Anagram",
+    "platform": "LeetCode",
+    "external_id": "242",
+    "url": "https://leetcode.com/problems/valid-anagram/",
+    "difficulty": "Easy",
+    "pattern": "Hashing"
+  },
+  {
+    "title": "Group Anagrams",
+    "platform": "LeetCode",
+    "external_id": "49",
+    "url": "https://leetcode.com/problems/group-anagrams/",
+    "difficulty": "Medium",
+    "pattern": "Hashing"
+  },
+  {
+    "title": "Top K Frequent Elements",
+    "platform": "LeetCode",
+    "external_id": "347",
+    "url": "https://leetcode.com/problems/top-k-frequent-elements/",
+    "difficulty": "Medium",
+    "pattern": "Hashing"
+  },
+  {
+    "title": "Longest Consecutive Sequence",
+    "platform": "LeetCode",
+    "external_id": "128",
+    "url": "https://leetcode.com/problems/longest-consecutive-sequence/",
+    "difficulty": "Medium",
+    "pattern": "Hashing"
+  },
+
+  {
+    "title": "Range Sum Query - Immutable",
+    "platform": "LeetCode",
+    "external_id": "303",
+    "url": "https://leetcode.com/problems/range-sum-query-immutable/",
+    "difficulty": "Easy",
+    "pattern": "Prefix Sum"
+  },
+  {
+    "title": "Subarray Sum Equals K",
+    "platform": "LeetCode",
+    "external_id": "560",
+    "url": "https://leetcode.com/problems/subarray-sum-equals-k/",
+    "difficulty": "Medium",
+    "pattern": "Prefix Sum"
+  },
+  {
+    "title": "Product of Array Except Self",
+    "platform": "LeetCode",
+    "external_id": "238",
+    "url": "https://leetcode.com/problems/product-of-array-except-self/",
+    "difficulty": "Medium",
+    "pattern": "Prefix Sum"
+  },
+
+  {
+    "title": "Valid Parentheses",
+    "platform": "LeetCode",
+    "external_id": "20",
+    "url": "https://leetcode.com/problems/valid-parentheses/",
+    "difficulty": "Easy",
+    "pattern": "Stack"
+  },
+  {
+    "title": "Min Stack",
+    "platform": "LeetCode",
+    "external_id": "155",
+    "url": "https://leetcode.com/problems/min-stack/",
+    "difficulty": "Medium",
+    "pattern": "Stack"
+  },
+  {
+    "title": "Daily Temperatures",
+    "platform": "LeetCode",
+    "external_id": "739",
+    "url": "https://leetcode.com/problems/daily-temperatures/",
+    "difficulty": "Medium",
+    "pattern": "Stack"
+  },
+  {
+    "title": "Evaluate Reverse Polish Notation",
+    "platform": "LeetCode",
+    "external_id": "150",
+    "url": "https://leetcode.com/problems/evaluate-reverse-polish-notation/",
+    "difficulty": "Medium",
+    "pattern": "Stack"
+  },
+
+  {
+    "title": "Implement Queue using Stacks",
+    "platform": "LeetCode",
+    "external_id": "232",
+    "url": "https://leetcode.com/problems/implement-queue-using-stacks/",
+    "difficulty": "Easy",
+    "pattern": "Queue"
+  },
+  {
+    "title": "Number of Recent Calls",
+    "platform": "LeetCode",
+    "external_id": "933",
+    "url": "https://leetcode.com/problems/number-of-recent-calls/",
+    "difficulty": "Easy",
+    "pattern": "Queue"
+  },
+
+  {
+    "title": "Reverse Linked List",
+    "platform": "LeetCode",
+    "external_id": "206",
+    "url": "https://leetcode.com/problems/reverse-linked-list/",
+    "difficulty": "Easy",
+    "pattern": "Linked List"
+  },
+  {
+    "title": "Merge Two Sorted Lists",
+    "platform": "LeetCode",
+    "external_id": "21",
+    "url": "https://leetcode.com/problems/merge-two-sorted-lists/",
+    "difficulty": "Easy",
+    "pattern": "Linked List"
+  },
+  {
+    "title": "Linked List Cycle",
+    "platform": "LeetCode",
+    "external_id": "141",
+    "url": "https://leetcode.com/problems/linked-list-cycle/",
+    "difficulty": "Easy",
+    "pattern": "Linked List"
+  },
+  {
+    "title": "Remove Nth Node From End of List",
+    "platform": "LeetCode",
+    "external_id": "19",
+    "url": "https://leetcode.com/problems/remove-nth-node-from-end-of-list/",
+    "difficulty": "Medium",
+    "pattern": "Linked List"
+  },
+
+  {
+    "title": "Maximum Depth of Binary Tree",
+    "platform": "LeetCode",
+    "external_id": "104",
+    "url": "https://leetcode.com/problems/maximum-depth-of-binary-tree/",
+    "difficulty": "Easy",
+    "pattern": "Trees"
+  },
+  {
+    "title": "Invert Binary Tree",
+    "platform": "LeetCode",
+    "external_id": "226",
+    "url": "https://leetcode.com/problems/invert-binary-tree/",
+    "difficulty": "Easy",
+    "pattern": "Trees"
+  },
+  {
+    "title": "Binary Tree Level Order Traversal",
+    "platform": "LeetCode",
+    "external_id": "102",
+    "url": "https://leetcode.com/problems/binary-tree-level-order-traversal/",
+    "difficulty": "Medium",
+    "pattern": "BFS"
+  },
+
+  {
+    "title": "Number of Islands",
+    "platform": "LeetCode",
+    "external_id": "200",
+    "url": "https://leetcode.com/problems/number-of-islands/",
+    "difficulty": "Medium",
+    "pattern": "DFS"
+  },
+  {
+    "title": "Clone Graph",
+    "platform": "LeetCode",
+    "external_id": "133",
+    "url": "https://leetcode.com/problems/clone-graph/",
+    "difficulty": "Medium",
+    "pattern": "BFS"
+  },
+
+  {
+    "title": "Kth Largest Element in an Array",
+    "platform": "LeetCode",
+    "external_id": "215",
+    "url": "https://leetcode.com/problems/kth-largest-element-in-an-array/",
+    "difficulty": "Medium",
+    "pattern": "Heap"
+  },
+  {
+    "title": "Last Stone Weight",
+    "platform": "LeetCode",
+    "external_id": "1046",
+    "url": "https://leetcode.com/problems/last-stone-weight/",
+    "difficulty": "Easy",
+    "pattern": "Heap"
+  },
+
+  {
+    "title": "Jump Game",
+    "platform": "LeetCode",
+    "external_id": "55",
+    "url": "https://leetcode.com/problems/jump-game/",
+    "difficulty": "Medium",
+    "pattern": "Greedy"
+  },
+  {
+    "title": "Best Time to Buy and Sell Stock",
+    "platform": "LeetCode",
+    "external_id": "121",
+    "url": "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/",
+    "difficulty": "Easy",
+    "pattern": "Greedy"
+  },
+
+  {
+    "title": "Climbing Stairs",
+    "platform": "LeetCode",
+    "external_id": "70",
+    "url": "https://leetcode.com/problems/climbing-stairs/",
+    "difficulty": "Easy",
+    "pattern": "Dynamic Programming"
+  },
+  {
+    "title": "House Robber",
+    "platform": "LeetCode",
+    "external_id": "198",
+    "url": "https://leetcode.com/problems/house-robber/",
+    "difficulty": "Medium",
+    "pattern": "Dynamic Programming"
+  },
+  {
+    "title": "Coin Change",
+    "platform": "LeetCode",
+    "external_id": "322",
+    "url": "https://leetcode.com/problems/coin-change/",
+    "difficulty": "Medium",
+    "pattern": "Dynamic Programming"
+  },
+
+  {
+    "title": "Subsets",
+    "platform": "LeetCode",
+    "external_id": "78",
+    "url": "https://leetcode.com/problems/subsets/",
+    "difficulty": "Medium",
+    "pattern": "Backtracking"
+  },
+  {
+    "title": "Permutations",
+    "platform": "LeetCode",
+    "external_id": "46",
+    "url": "https://leetcode.com/problems/permutations/",
+    "difficulty": "Medium",
+    "pattern": "Backtracking"
+  },
+  {
+    "title": "Intersection of Two Arrays II",
+    "platform": "LeetCode",
+    "external_id": "350",
+    "url": "https://leetcode.com/problems/intersection-of-two-arrays-ii/",
+    "difficulty": "Easy",
+    "pattern": "Hashing"
+  },
+  {
+    "title": "Middle of the Linked List",
+    "platform": "LeetCode",
+    "external_id": "876",
+    "url": "https://leetcode.com/problems/middle-of-the-linked-list/",
+    "difficulty": "Easy",
+    "pattern": "Linked List"
+  },
+  {
+    "title": "Partition Equal Subset Sum",
+    "platform": "LeetCode",
+    "external_id": "416",
+    "url": "https://leetcode.com/problems/partition-equal-subset-sum/",
+    "difficulty": "Medium",
+    "pattern": "Dynamic Programming"
+  }
+]

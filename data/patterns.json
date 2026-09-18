@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Two Pointers",
+    "description": "Uses two indices moving through a sequence to solve problems efficiently."
+  },
+  {
+    "name": "Sliding Window",
+    "description": "Maintains a dynamic or fixed window over a sequence to process contiguous ranges efficiently."
+  },
+  {
+    "name": "Binary Search",
+    "description": "Searches sorted or monotonic data by repeatedly dividing the search space."
+  },
+  {
+    "name": "Hashing",
+    "description": "Uses hash maps or sets for fast lookup, counting, and duplicate detection."
+  },
+  {
+    "name": "Prefix Sum",
+    "description": "Precomputes cumulative values to answer range-based queries efficiently."
+  },
+  {
+    "name": "Stack",
+    "description": "Uses last-in-first-out processing for nested structures, monotonic patterns, and expression problems."
+  },
+  {
+    "name": "Queue",
+    "description": "Uses first-in-first-out processing for ordered traversal and scheduling problems."
+  },
+  {
+    "name": "Linked List",
+    "description": "Manipulates nodes connected through pointers to solve sequential data structure problems."
+  },
+  {
+    "name": "Trees",
+    "description": "Uses hierarchical tree structures and traversal techniques to solve recursive and structural problems."
+  },
+  {
+    "name": "BFS",
+    "description": "Explores graph or tree nodes level by level using a queue."
+  },
+  {
+    "name": "DFS",
+    "description": "Explores graph or tree structures deeply using recursion or an explicit stack."
+  },
+  {
+    "name": "Heap",
+    "description": "Uses priority queues to efficiently retrieve minimum or maximum elements."
+  },
+  {
+    "name": "Greedy",
+    "description": "Builds solutions by repeatedly choosing the locally optimal decision."
+  },
+  {
+    "name": "Dynamic Programming",
+    "description": "Solves overlapping subproblems using memoization or tabulation."
+  },
+  {
+    "name": "Backtracking",
+    "description": "Explores possible solutions recursively while undoing choices that lead to invalid states."
+  }
+]
