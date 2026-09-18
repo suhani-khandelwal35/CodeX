@@ -12,7 +12,7 @@ from app.models import (
     Note,
 )
 
-from app.routes import users, patterns, problems, submissions
+from app.routes import users, patterns, problems, submissions, mistakes
 
 Base.metadata.create_all(bind=engine)
 
@@ -23,6 +23,7 @@ app.include_router(users.router)
 app.include_router(patterns.router)
 app.include_router(problems.router)
 app.include_router(submissions.router)
+app.include_router(mistakes.router)
 
 @app.get("/")
 def root():
