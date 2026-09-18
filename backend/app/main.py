@@ -1,7 +1,18 @@
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from app.database import engine
+from app.database import engine, Base
+from app.models import (
+    User,
+    Pattern,
+    Problem,
+    Submission,
+    Mistake,
+    PatternMastery,
+    Note,
+)
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CodeX API")
 
@@ -20,4 +31,7 @@ def health():
 def database_health():
     with engine.connect() as connection:
         result = connection.execute(text("SELECT 1"))
-        return {"database": "connected", "result": result.scalar()}
+        return {
+            "database": "connected",
+            "result": result.scalar()
+        }
