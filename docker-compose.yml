@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: codex-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: codex
+      POSTGRES_USER: codex_user
+      POSTGRES_PASSWORD: codex_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - codex_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  codex_postgres_data:
