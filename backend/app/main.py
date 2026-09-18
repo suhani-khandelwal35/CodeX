@@ -12,9 +12,17 @@ from app.models import (
     Note,
 )
 
+from app.routes import users, patterns, problems
+
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CodeX API")
+
+
+app.include_router(users.router)
+app.include_router(patterns.router)
+app.include_router(problems.router)
 
 
 @app.get("/")
@@ -31,6 +39,7 @@ def health():
 def database_health():
     with engine.connect() as connection:
         result = connection.execute(text("SELECT 1"))
+
         return {
             "database": "connected",
             "result": result.scalar()
