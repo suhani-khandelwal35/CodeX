@@ -1,59 +1,58 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { apiRequest, type Pattern, type Problem, type Submission } from "./api";
+import { CodeEditor } from "../components/code-editor";
+import { useLearner } from "../components/learner-context";
+import { IconExternal, IconSend, IconSparkle } from "../components/icons";
+import { ResultPanel } from "../components/result-panel";
 import {
-  apiRequest,
-  LEARNER_STORAGE_KEY,
-  type Pattern,
-  type Problem,
-  type Submission,
-  type User,
-} from "./api";
+  Badge,
+  Button,
+  CodeBlock,
+  EmptyState,
+  ErrorState,
+  Eyebrow,
+  InlineNotice,
+  LoadingPanel,
+  Panel,
+  cx,
+  difficultyTone,
+} from "../components/ui";
+import { takePracticePrefill } from "../lib/storage";
+import { pluralize } from "../lib/format";
 
-interface AttemptFeedback {
-  submission: Submission;
-}
+const LANGUAGES = [
+  { value: "python", label: "Python 3" },
+  { value: "java", label: "Java (class Main)" },
+] as const;
 
-function readStoredLearnerId(): string {
-  try {
-    return window.localStorage.getItem(LEARNER_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function storeLearnerId(value: string) {
-  try {
-    window.localStorage.setItem(LEARNER_STORAGE_KEY, value);
-  } catch {
-    // Storage can be unavailable in private windows; the field still works.
-  }
-}
+const PLACEHOLDER: Record<string, string> = {
+  python: "# Read from standard input, print the answer to standard output\nimport sys\n\ndata = sys.stdin.read().split()\n",
+  java: "import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner in = new Scanner(System.in);\n    }\n}\n",
+};
 
 export default function PracticePage() {
+  const learner = useLearner();
+  const { learnerId } = learner;
+
   const [problems, setProblems] = useState<Problem[]>([]);
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [problemId, setProblemId] = useState("");
-  const [userId, setUserId] = useState("");
   const [language, setLanguage] = useState("python");
   const [code, setCode] = useState("");
-  const [feedback, setFeedback] = useState<AttemptFeedback | null>(null);
+  const [result, setResult] = useState<Submission | null>(null);
   const [loadingProblems, setLoadingProblems] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [submitError, setSubmitError] = useState("");
-
-  const [learnerName, setLearnerName] = useState("");
-  const [learnerEmail, setLearnerEmail] = useState("");
-  const [creatingLearner, setCreatingLearner] = useState(false);
-  const [learnerMessage, setLearnerMessage] = useState("");
-  const [learnerError, setLearnerError] = useState("");
+  const [prefilledFrom, setPrefilledFrom] = useState<number | null>(null);
 
   // Guards against a second click or Enter press landing before React
   // re-renders the disabled button.
   const submitInFlight = useRef(false);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,51 +63,51 @@ export default function PracticePage() {
           apiRequest<Problem[]>("/problems/"),
           apiRequest<Pattern[]>("/patterns/"),
         ]);
-        if (!cancelled) {
-          setProblems(problemList);
-          setPatterns(patternList);
-          const query = new URLSearchParams(window.location.search);
-          const requestedPatternId = Number(query.get("pattern_id"));
-          const requestedProblemId = Number(query.get("problem_id"));
-          const requestedProblem = problemList.find(
+        if (cancelled) return;
+        setProblems(problemList);
+        setPatterns(patternList);
+
+        const query = new URLSearchParams(window.location.search);
+        const prefill = takePracticePrefill();
+        const requestedPatternId = Number(query.get("pattern_id"));
+        const requestedProblemId = Number(query.get("problem_id")) || prefill?.problemId || 0;
+        const patternMatches = (problem: Problem) =>
+          !Number.isInteger(requestedPatternId) ||
+          requestedPatternId <= 0 ||
+          problem.pattern_id === requestedPatternId;
+
+        const requestedProblem = problemList.find(
+          (problem) => problem.id === requestedProblemId && patternMatches(problem),
+        );
+        const firstRunnable =
+          requestedProblem ??
+          problemList.find(
             (problem) =>
-              problem.id === requestedProblemId &&
               problem.test_cases_available &&
-              (!Number.isInteger(requestedPatternId) ||
-                requestedPatternId <= 0 ||
-                problem.pattern_id === requestedPatternId),
-          );
-          const firstRunnable =
-            requestedProblem ??
-            problemList.find(
-              (problem) =>
-                problem.test_cases_available &&
-                Number.isInteger(requestedPatternId) &&
-                requestedPatternId > 0 &&
-                problem.pattern_id === requestedPatternId,
-            ) ??
-            problemList.find((problem) => problem.test_cases_available) ??
-            problemList[0];
-          setProblemId(firstRunnable ? String(firstRunnable.id) : "");
-          if (problemList.length === 0) {
-            setLoadError("There are no problems available to practice yet.");
+              Number.isInteger(requestedPatternId) &&
+              requestedPatternId > 0 &&
+              problem.pattern_id === requestedPatternId,
+          ) ??
+          problemList.find((problem) => problem.test_cases_available) ??
+          problemList[0];
+        setProblemId(firstRunnable ? String(firstRunnable.id) : "");
+
+        if (prefill && requestedProblem && prefill.problemId === requestedProblem.id) {
+          setCode(prefill.code);
+          if (LANGUAGES.some((item) => item.value === prefill.language)) {
+            setLanguage(prefill.language);
           }
+          setPrefilledFrom(prefill.problemId);
+        }
+        if (problemList.length === 0) {
+          setLoadError("There are no problems available to practise yet.");
         }
       } catch (error) {
         if (!cancelled) {
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : "Could not load practice problems.",
-          );
+          setLoadError(error instanceof Error ? error.message : "Could not load practice problems.");
         }
       } finally {
-        if (!cancelled) {
-          setLoadingProblems(false);
-          // Restore the remembered learner ID after the first await so this
-          // never runs synchronously inside the effect body.
-          setUserId((current) => current || readStoredLearnerId());
-        }
+        if (!cancelled) setLoadingProblems(false);
       }
     }
 
@@ -118,32 +117,44 @@ export default function PracticePage() {
     };
   }, []);
 
-  const selectedProblem = problems.find(
-    (problem) => String(problem.id) === problemId,
-  );
-  const selectedPattern = useMemo(
-    () => patterns.find((pattern) => pattern.id === selectedProblem?.pattern_id),
-    [patterns, selectedProblem],
-  );
+  const selectedProblem = problems.find((problem) => String(problem.id) === problemId);
+  const patternById = useMemo(() => new Map(patterns.map((p) => [p.id, p])), [patterns]);
+  const selectedPattern = selectedProblem ? patternById.get(selectedProblem.pattern_id) : undefined;
   const runnableCount = useMemo(
     () => problems.filter((problem) => problem.test_cases_available).length,
     [problems],
   );
+  const groupedProblems = useMemo(() => {
+    const groups = new Map<number, Problem[]>();
+    for (const problem of problems) {
+      const list = groups.get(problem.pattern_id) ?? [];
+      list.push(problem);
+      groups.set(problem.pattern_id, list);
+    }
+    return [...groups.entries()];
+  }, [problems]);
 
-  function updateLearnerId(value: string) {
-    setUserId(value);
-    storeLearnerId(value);
+  function selectProblem(nextId: string) {
+    setProblemId(nextId);
+    setResult(null);
+    setSubmitError("");
+    setPrefilledFrom(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("problem_id", nextId);
+      url.searchParams.delete("pattern_id");
+      window.history.replaceState(null, "", url);
+    }
   }
 
-  async function submitAttempt(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submitAttempt(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     if (submitInFlight.current) return;
     setSubmitError("");
-    setFeedback(null);
 
-    const parsedUserId = Number(userId);
+    const parsedUserId = Number(learnerId);
     if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
-      setSubmitError("Enter a valid learner ID before submitting.");
+      setSubmitError("Choose a learner before submitting. Use the account control in the top bar.");
       return;
     }
     if (!selectedProblem) {
@@ -161,6 +172,7 @@ export default function PracticePage() {
 
     submitInFlight.current = true;
     setSubmitting(true);
+    setResult(null);
     try {
       const submission = await apiRequest<Submission>("/submissions/", {
         method: "POST",
@@ -171,7 +183,10 @@ export default function PracticePage() {
           language,
         }),
       });
-      setFeedback({ submission });
+      setResult(submission);
+      requestAnimationFrame(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -184,412 +199,278 @@ export default function PracticePage() {
     }
   }
 
-  async function createLearner(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (creatingLearner) return;
-    setLearnerError("");
-    setLearnerMessage("");
-    if (!learnerName.trim() || !learnerEmail.trim()) {
-      setLearnerError("Enter a name and an email address.");
-      return;
-    }
-    setCreatingLearner(true);
-    try {
-      const user = await apiRequest<User>("/users/", {
-        method: "POST",
-        body: JSON.stringify({ name: learnerName.trim(), email: learnerEmail.trim() }),
-      });
-      updateLearnerId(String(user.id));
-      setLearnerMessage(`Created learner #${user.id} for ${user.name}.`);
-      setLearnerName("");
-      setLearnerEmail("");
-    } catch (error) {
-      setLearnerError(
-        error instanceof Error ? error.message : "Could not create the learner.",
-      );
-    } finally {
-      setCreatingLearner(false);
+  function handleEditorShortcut(event: KeyboardEvent<HTMLFormElement>) {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      event.preventDefault();
+      void submitAttempt();
     }
   }
 
-  function openRecommendedProblem() {
-    if (!feedback?.submission.recommendation) return;
-    setProblemId(String(feedback.submission.recommendation.problem_id));
-    setFeedback(null);
+  function openRecommendedProblem(nextProblemId: number) {
+    selectProblem(String(nextProblemId));
     setCode("");
-    setSubmitError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const verdict = feedback?.submission;
-  const details = verdict?.evaluation_details;
+  const lineCount = code ? code.split("\n").length : 0;
+  const canSubmit = Boolean(selectedProblem?.test_cases_available) && !submitting && !loadingProblems;
 
   return (
-    <main className="min-h-screen bg-[#f5f6f8] px-4 py-8 text-slate-900 sm:px-8">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-indigo-600">
-              CodeX · Practice
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight">
-              Learn by solving
-            </h1>
-            <p className="mt-2 max-w-2xl text-slate-600">
-              Solve a problem, get a sandboxed verdict, and use the feedback to
-              choose what to practice next.
-            </p>
-          </div>
-          <Link
-            href="/"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400"
-          >
-            Home
-          </Link>
-          <Link
-            href="/dashboard"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400"
-          >
-            Progress dashboard
-          </Link>
-          <Link
-            href="/recommendations"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400"
-          >
-            Next problem
-          </Link>
-          <Link
-            href="/revisions"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400"
-          >
-            Revisions
-          </Link>
-        </header>
-
-        {loadError && (
-          <div
-            role="alert"
-            className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
-          >
-            {loadError} Check that the backend is running and
-            BACKEND_API_URL is configured correctly.
-          </div>
+    <div className="space-y-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Practice</h1>
+          <p className="mt-1 text-[13.5px] text-muted">
+            Solve, submit, and read the judged verdict beside the problem.
+            {runnableCount > 0 && ` ${runnableCount} of ${problems.length} problems can be evaluated.`}
+          </p>
+        </div>
+        {learner.hydrated && !learnerId && (
+          <Button size="sm" variant="primary" onClick={learner.openPanel}>
+            Choose a learner to submit
+          </Button>
         )}
+      </header>
 
-        {loadingProblems ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-600">
-            Loading problems…
-          </div>
-        ) : selectedProblem ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">
-                    Problem {selectedProblem.id}
-                  </p>
-                  <h2 className="mt-1 text-2xl font-bold">
-                    {selectedProblem.title}
-                  </h2>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
-                    {selectedProblem.difficulty}
-                  </span>
-                  <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold text-indigo-800">
-                    {selectedPattern?.name ?? "Pattern"}
-                  </span>
-                </div>
-              </div>
-              <p className="mt-6 whitespace-pre-wrap leading-7 text-slate-700">
-                {selectedProblem.description ||
-                  "No console input/output contract has been added for this problem yet."}
-              </p>
-              {selectedProblem.url && (
-                <a
-                  href={selectedProblem.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-block text-sm font-medium text-indigo-700 hover:underline"
-                >
-                  Original problem statement ↗
-                </a>
-              )}
-              {selectedProblem.test_cases_available ? (
-                selectedProblem.sample_cases.length > 0 && (
-                  <div className="mt-5 space-y-3">
-                    <p className="text-sm font-semibold text-slate-800">
-                      Sample cases (read from standard input, print to standard output)
-                    </p>
-                    {selectedProblem.sample_cases.map((sample, index) => (
-                      <div key={index} className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            Input {index + 1}
-                          </p>
-                          <pre className="mt-1 overflow-auto rounded-lg bg-slate-100 p-3 text-xs text-slate-800">
-                            {sample.input}
-                          </pre>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold uppercase text-slate-500">
-                            Expected output {index + 1}
-                          </p>
-                          <pre className="mt-1 overflow-auto rounded-lg bg-slate-100 p-3 text-xs text-slate-800">
-                            {sample.expected_output}
-                          </pre>
-                        </div>
-                      </div>
+      {loadError && (
+        <ErrorState
+          title="Problems could not be loaded"
+          message={loadError}
+          hint="Check that the backend is running and BACKEND_API_URL is configured correctly."
+        />
+      )}
+
+      {loadingProblems ? (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <LoadingPanel lines={6} label="Loading problems" />
+          <LoadingPanel lines={8} label="Preparing editor" />
+        </div>
+      ) : selectedProblem ? (
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          {/* ------------------------------------------------ Problem */}
+          <Panel className="p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6.5rem)] lg:overflow-y-auto scroll-quiet">
+            <label className="block">
+              <span className="sr-only">Problem</span>
+              <select
+                value={problemId}
+                onChange={(event) => selectProblem(event.target.value)}
+                className="field h-9 !py-0 text-[13px]"
+              >
+                {groupedProblems.map(([patternId, list]) => (
+                  <optgroup key={patternId} label={patternById.get(patternId)?.name ?? `Pattern ${patternId}`}>
+                    {list.map((problem) => (
+                      <option key={problem.id} value={problem.id}>
+                        {problem.title}
+                        {problem.test_cases_available ? "" : " (not evaluable)"}
+                      </option>
                     ))}
-                    <p className="text-xs text-slate-500">
-                      Hidden cases are also run. Trailing whitespace is ignored when comparing output.
-                    </p>
-                  </div>
-                )
-              ) : (
-                <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                  Evaluation is unavailable for this problem until its test cases are configured.
-                  {runnableCount > 0 && ` ${runnableCount} other problems can be evaluated.`}
-                </p>
-              )}
+                  </optgroup>
+                ))}
+              </select>
+            </label>
 
-              <form onSubmit={submitAttempt} className="mt-8 space-y-5">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Problem
+            <div className="mt-4">
+              <Eyebrow>Problem {selectedProblem.id}</Eyebrow>
+              <h2 className="mt-1 text-[20px] font-semibold leading-snug tracking-tight text-ink">
+                {selectedProblem.title}
+              </h2>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <Badge tone={difficultyTone(selectedProblem.difficulty)}>{selectedProblem.difficulty}</Badge>
+                <Badge tone="accent">{selectedPattern?.name ?? "Pattern"}</Badge>
+                {!selectedProblem.test_cases_available && <Badge tone="warning">Not evaluable</Badge>}
+              </div>
+            </div>
+
+            <div className="mt-4 whitespace-pre-wrap text-[13.5px] leading-6 text-ink/90">
+              {selectedProblem.description ||
+                "No console input/output contract has been added for this problem yet."}
+            </div>
+
+            {selectedProblem.url && (
+              <a
+                href={selectedProblem.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded text-[13px] font-medium text-accent-2 hover:underline"
+              >
+                Original problem statement
+                <IconExternal size={13} />
+              </a>
+            )}
+
+            {selectedProblem.test_cases_available ? (
+              selectedProblem.sample_cases.length > 0 && (
+                <div className="mt-5 space-y-3 border-t border-line-soft pt-4">
+                  <div>
+                    <p className="text-[13px] font-semibold text-ink">Sample cases</p>
+                    <p className="text-[12px] text-muted">Read from standard input, print to standard output.</p>
+                  </div>
+                  {selectedProblem.sample_cases.map((sample, index) => (
+                    <div key={index} className="grid gap-2 sm:grid-cols-2">
+                      <div className="min-w-0">
+                        <Eyebrow className="mb-1">Input {index + 1}</Eyebrow>
+                        <CodeBlock maxHeight="10rem">{sample.input}</CodeBlock>
+                      </div>
+                      <div className="min-w-0">
+                        <Eyebrow className="mb-1">Expected {index + 1}</Eyebrow>
+                        <CodeBlock maxHeight="10rem">{sample.expected_output}</CodeBlock>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[12px] leading-5 text-faint">
+                    Hidden cases are also run. Trailing whitespace is ignored when comparing output.
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="mt-5">
+                <InlineNotice tone="warning">
+                  Evaluation is unavailable for this problem until its test cases are configured.
+                  {runnableCount > 0 && ` ${pluralize(runnableCount, "other problem")} can be evaluated.`}
+                </InlineNotice>
+              </div>
+            )}
+
+            {selectedPattern?.description && (
+              <div className="mt-5 border-t border-line-soft pt-4">
+                <Eyebrow>About {selectedPattern.name}</Eyebrow>
+                <p className="mt-1.5 text-[13px] leading-5 text-muted">{selectedPattern.description}</p>
+              </div>
+            )}
+          </Panel>
+
+          {/* ------------------------------------------------- Editor */}
+          <div className="space-y-4">
+            <Panel as="div" className="overflow-hidden p-0">
+              <form onSubmit={submitAttempt} onKeyDown={handleEditorShortcut}>
+                <div className="flex flex-wrap items-center gap-2 border-b border-line-soft px-3 py-2.5">
+                  <label className="flex items-center gap-2 text-[12.5px] text-muted">
+                    <span className="sr-only">Language</span>
                     <select
-                      value={problemId}
-                      onChange={(event) => {
-                        setProblemId(event.target.value);
-                        setFeedback(null);
-                        setSubmitError("");
-                      }}
-                      className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5"
+                      value={language}
+                      onChange={(event) => setLanguage(event.target.value)}
+                      className="field h-8 w-auto !py-0 text-[12.5px]"
                     >
-                      {problems.map((problem) => (
-                        <option key={problem.id} value={problem.id}>
-                          {problem.title}
-                          {problem.test_cases_available ? "" : " (not evaluable)"}
+                      {LANGUAGES.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
                         </option>
                       ))}
                     </select>
                   </label>
-                  <label className="block text-sm font-medium text-slate-700">
-                    Learner ID
-                    <input
-                      type="number"
-                      min="1"
-                      value={userId}
-                      onChange={(event) => updateLearnerId(event.target.value)}
-                      placeholder="Enter your user ID"
-                      required
-                      className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5"
-                    />
-                  </label>
+                  <span className="hidden text-[12px] tabular-nums text-faint sm:inline">
+                    {pluralize(lineCount, "line")}
+                  </span>
+                  {prefilledFrom === selectedProblem.id && (
+                    <Badge tone="accent">Loaded from a previous attempt</Badge>
+                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={!code || submitting}
+                      onClick={() => {
+                        setCode("");
+                        setPrefilledFrom(null);
+                      }}
+                    >
+                      Reset
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      variant="primary"
+                      disabled={!canSubmit}
+                      aria-busy={submitting}
+                      title="Ctrl+Enter"
+                    >
+                      {submitting ? (
+                        <>
+                          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#1a0f21]/30 border-t-[#1a0f21]" aria-hidden />
+                          Evaluating…
+                        </>
+                      ) : (
+                        <>
+                          <IconSend size={14} />
+                          Submit
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
-                <label className="block text-sm font-medium text-slate-700">
-                  Language
-                  <select
-                    value={language}
-                    onChange={(event) => setLanguage(event.target.value)}
-                    className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 sm:max-w-xs"
-                  >
-                    <option value="python">Python 3</option>
-                    <option value="java">Java (class Main)</option>
-                  </select>
-                </label>
-
-                <label className="block text-sm font-medium text-slate-700">
-                  Your solution
-                  <textarea
+                <div className="p-3">
+                  <CodeEditor
                     value={code}
-                    onChange={(event) => setCode(event.target.value)}
-                    rows={12}
-                    required
-                    spellCheck={false}
-                    placeholder="Read from standard input, print the answer to standard output…"
-                    className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-slate-950 p-4 font-mono text-sm leading-6 text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    onChange={setCode}
+                    language={language}
+                    placeholder={PLACEHOLDER[language]}
+                    disabled={submitting}
+                    minLines={18}
+                    className="max-h-[32rem]"
                   />
-                </label>
+                </div>
 
-                <p className="text-xs text-slate-500">
-                  The backend runs your code in an external sandbox judge and
-                  decides the verdict. Nothing is executed in the browser.
-                </p>
-
-                {submitError && (
-                  <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">
-                    {submitError}
+                <div className="flex flex-col gap-2 border-t border-line-soft px-4 py-3 text-[12px] leading-5 text-faint sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    Submitting sends the code to the external Judge0 sandbox and saves the verdict.
+                    {submitting && " This can take up to 45 seconds."}
                   </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={submitting || loadingProblems || !selectedProblem.test_cases_available}
-                  aria-busy={submitting}
-                  className="w-full rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
-                >
-                  {submitting ? "Evaluating… (up to 45s)" : "Evaluate solution"}
-                </button>
+                  <p className="hidden sm:block">Ctrl / ⌘ + Enter to submit</p>
+                </div>
               </form>
-            </section>
 
-            <aside className="space-y-6">
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold">Learning feedback</h2>
-                {!verdict ? (
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    Submit an attempt to see your verdict, mastery, mistake
-                    feedback, and suggested next problem.
-                  </p>
-                ) : (
-                  <div className="mt-4 space-y-4">
-                    <div
-                      role="status"
-                      className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
-                        verdict.is_correct
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                          : "border-red-200 bg-red-50 text-red-800"
-                      }`}
-                    >
-                      {verdict.is_correct ? "✓ Accepted" : `✗ ${verdict.status}`}
-                      {!verdict.is_correct && details?.failed_test && (
-                        <span className="block text-xs font-normal">
-                          Failed on test case {details.failed_test}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                      Verified execution result from Judge0
+              {submitError && (
+                <div className="border-t border-line-soft px-4 py-3">
+                  <ErrorState
+                    title="Submission not evaluated"
+                    message={submitError}
+                    action={
+                      !learnerId ? (
+                        <Button size="sm" onClick={learner.openPanel}>
+                          Choose a learner
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                </div>
+              )}
+            </Panel>
+
+            <div ref={resultRef}>
+              <Panel className={cx("p-5", submitting && "opacity-70")}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[15px] font-semibold tracking-tight text-ink">Result</h2>
+                    <p className="mt-0.5 text-[13px] text-muted">
+                      Verdict, feedback, mastery and the next recommended problem.
                     </p>
-                    {details?.error && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase text-slate-500">Judge output</p>
-                        <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
-                          {details.error}
-                        </pre>
-                      </div>
-                    )}
-                    {!verdict.is_correct && details?.actual_output !== undefined && details?.actual_output !== null && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase text-slate-500">Your output</p>
-                        <pre className="mt-1 max-h-60 overflow-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-100">
-                          {details.actual_output || "(empty)"}
-                        </pre>
-                      </div>
-                    )}
-                    {details?.feedback && (
-                      <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-                          {details.feedback.provider === "ai" ? "AI-generated explanation (advisory)" : "Rule-based explanation"}
-                        </p>
-                        <p className="font-semibold">{details.feedback.explanation}</p>
-                        <p><span className="font-semibold">Hint:</span> {details.feedback.hint}</p>
-                        <p><span className="font-semibold">Suggested correction:</span> {details.feedback.correction}</p>
-                        <p className="text-xs text-slate-500">
-                          This explanation does not determine the verdict.
-                        </p>
-                      </div>
-                    )}
-                    {verdict.mastery ? (
-                      <div className="rounded-xl bg-indigo-50 p-4">
-                        <p className="text-sm font-medium text-indigo-900">
-                          Updated pattern mastery
-                        </p>
-                        <p className="mt-1 text-3xl font-bold text-indigo-950">
-                          {verdict.mastery.mastery_score.toFixed(1)}
-                          <span className="ml-1 text-base font-medium">
-                            / 100
-                          </span>
-                        </p>
-                        {typeof verdict.mastery.total_attempts === "number" && (
-                          <p className="mt-1 text-xs text-indigo-900">
-                            {verdict.mastery.correct_attempts ?? 0} of {verdict.mastery.total_attempts} attempts correct
-                            {typeof verdict.mastery.consecutive_correct === "number" &&
-                              ` · streak ${verdict.mastery.consecutive_correct}`}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-600">
-                        Mastery score is not available for this pattern yet.
-                      </p>
-                    )}
-
-                    {verdict.recommendation && (
-                      <div className="rounded-xl border border-slate-200 p-4">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Recommended next
-                        </p>
-                        <p className="mt-2 font-bold">
-                          {verdict.recommendation.title}
-                        </p>
-                        <p className="mt-1 text-sm text-slate-600">
-                          {verdict.recommendation.difficulty} ·{" "}
-                          {verdict.recommendation.pattern}
-                        </p>
-                        <p className="mt-2 text-sm leading-5 text-slate-600">
-                          {verdict.recommendation.reason}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={openRecommendedProblem}
-                          className="mt-4 w-full rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
-                        >
-                          Practice this problem
-                        </button>
-                      </div>
-                    )}
                   </div>
+                  {result && <Badge>Submission #{result.id}</Badge>}
+                </div>
+                {result ? (
+                  <ResultPanel
+                    submission={result}
+                    patternName={selectedPattern?.name}
+                    onPracticeRecommended={openRecommendedProblem}
+                  />
+                ) : (
+                  <EmptyState
+                    compact
+                    icon={<IconSparkle size={20} />}
+                    title={submitting ? "Waiting for the judge…" : "No result yet"}
+                    body={
+                      submitting
+                        ? "Judge0 is compiling and running your program against every test case."
+                        : "Submit an attempt to see the Judge0 verdict, advisory feedback, updated mastery and a suggested next problem."
+                    }
+                  />
                 )}
-              </section>
-
-              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 className="text-lg font-bold">Need a learner ID?</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Create a learner once and the ID is filled in for you.
-                </p>
-                <form onSubmit={createLearner} className="mt-4 space-y-3">
-                  <input
-                    type="text"
-                    value={learnerName}
-                    onChange={(event) => setLearnerName(event.target.value)}
-                    placeholder="Name"
-                    autoComplete="name"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="email"
-                    value={learnerEmail}
-                    onChange={(event) => setLearnerEmail(event.target.value)}
-                    placeholder="Email"
-                    autoComplete="email"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  {learnerError && (
-                    <p role="alert" className="text-sm text-red-700">{learnerError}</p>
-                  )}
-                  {learnerMessage && (
-                    <p role="status" className="text-sm text-emerald-700">{learnerMessage}</p>
-                  )}
-                  <button
-                    type="submit"
-                    disabled={creatingLearner}
-                    className="w-full rounded-lg border border-indigo-200 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-60"
-                  >
-                    {creatingLearner ? "Creating…" : "Create learner"}
-                  </button>
-                </form>
-              </section>
-
-              <p className="px-1 text-xs leading-5 text-slate-500">
-                Code runs only through the configured external sandbox judge.
-                {runnableCount > 0 && ` ${runnableCount} of ${problems.length} problems have runnable test cases.`}
-              </p>
-            </aside>
+              </Panel>
+            </div>
           </div>
-        ) : null}
-      </div>
-    </main>
+        </div>
+      ) : null}
+    </div>
   );
 }

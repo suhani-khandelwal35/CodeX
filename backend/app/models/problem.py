@@ -13,7 +13,7 @@ class Problem(Base):
     url = Column(String(500), nullable=True)
     difficulty = Column(String(20), nullable=False)
     description = Column(Text, nullable=True)
-    test_cases = Column(JSON, nullable=False, default=list)
+    test_cases = Column(JSON, nullable=True, default=list)
     pattern_id = Column(Integer, ForeignKey("patterns.id"), nullable=False)
 
     @property

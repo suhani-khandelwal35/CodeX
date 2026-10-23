@@ -54,8 +54,11 @@ class JudgeTests(unittest.TestCase):
             with self.assertRaises(EvaluationUnavailable):
                 evaluate_submission(self.problem, "x", "python")
         with patch.dict(os.environ, {"JUDGE0_URL": "https://judge.invalid"}, clear=True):
-            with self.assertRaises(EvaluationUnavailable):
-                evaluate_submission(type("Problem", (), {"test_cases": []})(), "x", "python")
+            for test_cases in ([], None):
+                with self.subTest(test_cases=test_cases):
+                    problem = type("Problem", (), {"test_cases": test_cases})()
+                    with self.assertRaises(EvaluationUnavailable):
+                        evaluate_submission(problem, "x", "python")
 
     @patch.dict(os.environ, {"JUDGE0_URL": "https://judge.invalid", "JUDGE0_API_KEY": "test-token"})
     @patch("app.services.evaluator.time.sleep")
@@ -114,6 +117,25 @@ class JudgeTests(unittest.TestCase):
         from app.services.evaluator import _poll
         with self.assertRaises(EvaluationError):
             _poll("https://judge.invalid", "submission-token", {})
+
+    @patch.dict(os.environ, {"JUDGE0_TIMEOUT_SECONDS": "0.5"})
+    @patch("app.services.evaluator.time.sleep")
+    @patch("app.services.evaluator.time.monotonic", return_value=0)
+    @patch("app.services.evaluator.urlopen")
+    def test_poll_uses_evaluation_deadline_not_per_request_timeout(self, open_url, _clock, _sleep):
+        pending = MagicMock()
+        pending.__enter__.return_value = pending
+        pending.read.return_value = b'{"status":{"id":1,"description":"In Queue"}}'
+        completed = MagicMock()
+        completed.__enter__.return_value = completed
+        completed.read.return_value = b'{"status":{"id":3,"description":"Accepted"},"stdout":"4\\n"}'
+        open_url.side_effect = [pending, completed]
+
+        from app.services.evaluator import _poll
+        result = _poll("https://judge.invalid", "submission-token", {}, deadline=10)
+
+        self.assertEqual(result["status"]["id"], 3)
+        self.assertEqual(open_url.call_count, 2)
 
     @patch.dict(os.environ, {"JUDGE0_URL": "https://judge.invalid", "JUDGE0_EVALUATION_TIMEOUT_SECONDS": "1"})
     @patch("app.services.evaluator.time.monotonic", side_effect=[0, 0, 2])
@@ -729,4 +751,3 @@ class SubmissionFlowTests(unittest.TestCase):
         self.assertEqual(error.exception.status_code, 502)
         self.assertEqual(self.session.query(Submission).count(), 0)
         self.assertEqual(self.session.query(PatternMastery).count(), 0)
-

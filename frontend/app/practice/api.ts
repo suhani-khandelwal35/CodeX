@@ -1,5 +1,5 @@
 const API_PREFIX = "/api/backend";
-const REQUEST_TIMEOUT_MS = 45_000;
+const REQUEST_TIMEOUT_MS = 130_000;
 export const LEARNER_STORAGE_KEY = "patterniq.learnerId";
 
 export interface SampleCase {
@@ -21,6 +21,7 @@ export interface Problem {
 export interface Pattern {
   id: number;
   name: string;
+  description?: string | null;
 }
 
 export interface User {
@@ -33,13 +34,23 @@ export interface Submission {
   id: number;
   user_id: number;
   problem_id: number;
+  code?: string | null;
+  language: string;
   is_correct: boolean;
   status: string;
+  submitted_at?: string | null;
   evaluation_details: {
     error?: string | null;
     failed_test?: number | null;
     actual_output?: string | null;
-    feedback?: { explanation: string; hint: string; correction: string; provider: string };
+    feedback?: {
+      explanation: string;
+      hint: string;
+      correction: string;
+      provider: string;
+      // Sanitized reason the backend used rule-based feedback (never a secret).
+      fallback_reason?: string | null;
+    };
   } | null;
   mastery?: Mastery | null;
   mistake?: Mistake | null;

@@ -16,9 +16,8 @@ const nextConfig: NextConfig = {
   // and forward it unchanged via the first rewrite below.
   skipTrailingSlashRedirect: true,
   experimental: {
-    // The /api/backend rewrite proxy defaults to a 30 s timeout, shorter than
-    // a submission's judge budget and the client's 45 s request timeout.
-    proxyTimeout: 60_000,
+    // Allow the bounded Judge0 evaluation budget plus response persistence.
+    proxyTimeout: 120_000,
   },
   async rewrites() {
     const backendUrl = (

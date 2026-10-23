@@ -94,12 +94,12 @@ class SeedBehaviourTests(unittest.TestCase):
         self.assertEqual(len(demo.test_cases), 3)
         self.assertIn("Console I/O", demo.description)
 
-    def test_seed_fills_cases_for_existing_problem_without_them(self):
+    def test_seed_fills_cases_for_existing_problem_with_null_cases(self):
         pattern = Pattern(name="Binary Search")
         self.session.add(pattern)
         self.session.flush()
         self.session.add(Problem(title="Binary Search", platform="LeetCode", external_id="704",
-                                 difficulty="Easy", pattern_id=pattern.id, test_cases=[]))
+                                 difficulty="Easy", pattern_id=pattern.id, test_cases=None))
         self.session.commit()
 
         created, updated = self._seed()

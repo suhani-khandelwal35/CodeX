@@ -16,6 +16,7 @@ from app.services.feedback import ai_configuration
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 AI_NAMES = ("AI_API_KEY", "AI_API_URL", "AI_MODEL")
+ENV_NAMES = (*AI_NAMES, "JUDGE0_URL")
 
 
 class EnvFileLoadingTests(unittest.TestCase):
@@ -24,13 +25,13 @@ class EnvFileLoadingTests(unittest.TestCase):
         self.env_file = Path(self.tmp.name) / ".env"
         # CRLF line endings and no trailing newline, like a file saved in a Windows editor.
         self.env_file.write_bytes(b"AI_API_URL=https://api.openai.com/v1\r\nAI_MODEL=gpt-4o-mini\r\n"
-                                  b"AI_API_KEY=sk-file-fake")
-        self.saved = {name: os.environ.pop(name) for name in AI_NAMES if name in os.environ}
+                                  b"AI_API_KEY=sk-file-fake\r\nJUDGE0_URL=https://judge.invalid")
+        self.saved = {name: os.environ.pop(name) for name in ENV_NAMES if name in os.environ}
         self.cwd = os.getcwd()
 
     def tearDown(self):
         os.chdir(self.cwd)
-        for name in AI_NAMES:
+        for name in ENV_NAMES:
             os.environ.pop(name, None)
         os.environ.update(self.saved)
         self.tmp.cleanup()
@@ -57,10 +58,12 @@ class EnvFileLoadingTests(unittest.TestCase):
     def test_process_environment_takes_precedence_over_the_file(self):
         os.environ["AI_API_KEY"] = "sk-process-fake"
         os.environ["AI_MODEL"] = "process-model"
+        os.environ["JUDGE0_URL"] = ""
         database.load_backend_env(self.env_file)
         self.assertEqual(os.environ["AI_API_KEY"], "sk-process-fake")
         self.assertEqual(os.environ["AI_MODEL"], "process-model")
         self.assertEqual(os.environ["AI_API_URL"], "https://api.openai.com/v1")
+        self.assertEqual(os.environ["JUDGE0_URL"], "")
 
     def test_missing_file_changes_nothing(self):
         self.assertFalse(database.load_backend_env(Path(self.tmp.name) / "absent.env"))
@@ -71,7 +74,7 @@ class TestIsolationTests(unittest.TestCase):
     def test_skip_switch_prevents_loading_backend_env(self):
         # A fresh interpreter importing the real module with the switch set must
         # not pick up anything from backend/.env. Only booleans are printed.
-        env = {k: v for k, v in os.environ.items() if k not in AI_NAMES}
+        env = {k: v for k, v in os.environ.items() if k not in ENV_NAMES}
         env.update({"CODEX_SKIP_DOTENV": "1", "DATABASE_URL": "sqlite://"})
         code = ("import os, app.database; "
                 f"print(any(os.getenv(n) for n in {AI_NAMES!r}), os.getenv('DATABASE_URL') == 'sqlite://')")

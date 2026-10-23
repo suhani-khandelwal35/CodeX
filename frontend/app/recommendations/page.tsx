@@ -1,230 +1,227 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { apiRequest, type LearnerProgress, type Recommendation } from "../practice/api";
+import { useLearner } from "../components/learner-context";
+import { IconArrowRight, IconCompass, IconUser } from "../components/icons";
 import {
-  apiRequest,
-  LEARNER_STORAGE_KEY,
-  type Recommendation,
-} from "../practice/api";
+  Badge,
+  Button,
+  EmptyState,
+  ErrorState,
+  Eyebrow,
+  LinkButton,
+  LoadingPanel,
+  Meter,
+  Panel,
+  PanelHeader,
+  difficultyTone,
+  masteryTone,
+} from "../components/ui";
+import { formatPercent, pluralize } from "../lib/format";
 
-const NO_RECOMMENDATION_MESSAGE =
-  "No problems with usable test cases are available";
+const NO_RECOMMENDATION_MESSAGE = "No problems with usable test cases are available";
 
-function readStoredLearnerId(): string {
-  try {
-    return window.localStorage.getItem(LEARNER_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-function storeLearnerId(value: string) {
-  try {
-    window.localStorage.setItem(LEARNER_STORAGE_KEY, value);
-  } catch {
-    // The learner ID remains usable for this page session.
-  }
-}
+const RULES = [
+  { label: "Low mastery", body: "An easier problem in the weakest pattern." },
+  { label: "Developing", body: "A difficulty close to your most recent attempt." },
+  { label: "Strong", body: "A harder problem to stretch the pattern." },
+  { label: "Always", body: "Unattempted, evaluable problems are preferred." },
+];
 
 export default function RecommendationsPage() {
-  const [learnerId, setLearnerId] = useState("");
-  const [activeLearnerId, setActiveLearnerId] = useState("");
+  const learner = useLearner();
+  const { learnerId, hydrated } = learner;
+
   const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [progress, setProgress] = useState<LearnerProgress | null>(null);
   const [loading, setLoading] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
   const [error, setError] = useState("");
-  const [learnerIdError, setLearnerIdError] = useState("");
   const [reloadVersion, setReloadVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    async function restoreLearnerId() {
-      const savedId = await Promise.resolve(readStoredLearnerId());
-      if (!cancelled && savedId) {
-        setLearnerId(savedId);
-        setActiveLearnerId(savedId);
+
+    async function load() {
+      if (!learnerId) {
+        setRecommendation(null);
+        setProgress(null);
+        setError("");
+        setIsEmpty(false);
+        return;
       }
-    }
-    void restoreLearnerId();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!activeLearnerId) return;
-    let cancelled = false;
-
-    async function loadRecommendation() {
       setLoading(true);
-      setRecommendation(null);
       setIsEmpty(false);
       setError("");
-      try {
-        const result = await apiRequest<Recommendation>(
-          `/recommendations/?user_id=${encodeURIComponent(activeLearnerId)}`,
-        );
-        if (!cancelled) setRecommendation(result);
-      } catch (requestError) {
-        if (!cancelled) {
-          const message =
-            requestError instanceof Error
-              ? requestError.message
-              : "Could not load a recommendation.";
-          if (message === NO_RECOMMENDATION_MESSAGE) {
-            setIsEmpty(true);
-          } else {
-            setError(message);
-          }
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      const query = `?user_id=${encodeURIComponent(learnerId)}`;
+      const [recommendationResult, progressResult] = await Promise.allSettled([
+        apiRequest<Recommendation>(`/recommendations/${query}`),
+        apiRequest<LearnerProgress>(`/progress/${query}`),
+      ]);
+      if (cancelled) return;
+
+      if (recommendationResult.status === "fulfilled") {
+        setRecommendation(recommendationResult.value);
+      } else {
+        setRecommendation(null);
+        const message =
+          recommendationResult.reason instanceof Error
+            ? recommendationResult.reason.message
+            : "Could not load a recommendation.";
+        if (message === NO_RECOMMENDATION_MESSAGE) setIsEmpty(true);
+        else setError(message);
       }
+      // Progress is context only; its failure must not hide the recommendation.
+      setProgress(progressResult.status === "fulfilled" ? progressResult.value : null);
+      setLoading(false);
     }
 
-    void loadRecommendation();
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [activeLearnerId, reloadVersion]);
+  }, [learnerId, reloadVersion]);
 
-  function loadLearner(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLearnerIdError("");
-    const parsedId = Number(learnerId);
-    if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      setLearnerIdError("Enter a valid positive learner ID.");
-      return;
-    }
-    const normalizedId = String(parsedId);
-    storeLearnerId(normalizedId);
-    setLearnerId(normalizedId);
-    setActiveLearnerId(normalizedId);
-    setReloadVersion((version) => version + 1);
+  const weakestPatterns = useMemo(
+    () => (progress ? [...progress.patterns].sort((a, b) => a.mastery_score - b.mastery_score).slice(0, 4) : []),
+    [progress],
+  );
+
+  if (!hydrated) return <LoadingPanel label="Restoring learner" />;
+
+  if (!learnerId) {
+    return (
+      <div className="mx-auto max-w-2xl pt-6">
+        <EmptyState
+          icon={<IconUser size={22} />}
+          title="Choose a learner to personalise practice"
+          body="Recommendations are computed from one learner's saved mastery and submission history."
+          action={
+            <Button variant="primary" onClick={learner.openPanel}>
+              Choose or create a learner
+            </Button>
+          }
+        />
+      </div>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#f5f6f8] px-4 py-8 text-slate-900 sm:px-8">
-      <div className="mx-auto max-w-4xl">
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-indigo-600">
-              CodeX · Adaptive practice
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              Your next problem
-            </h1>
-            <p className="mt-2 max-w-2xl text-slate-600">
-              A deterministic recommendation based on your saved mastery and practice history.
-            </p>
-          </div>
-          <nav className="flex flex-wrap gap-2" aria-label="Main navigation">
-            <Link href="/dashboard" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400">
-              Dashboard
-            </Link>
-            <Link href="/revisions" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400">
-              Revisions
-            </Link>
-            <Link href="/practice" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:border-indigo-400">
-              Practice
-            </Link>
-          </nav>
-        </header>
+    <div className="space-y-5">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-[24px] font-semibold tracking-tight text-ink">Next problem</h1>
+          <p className="mt-1 text-[13.5px] text-muted">
+            One deterministic recommendation from your saved mastery and practice history.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setReloadVersion((v) => v + 1)} disabled={loading}>
+          Refresh
+        </Button>
+      </header>
 
-        <form
-          onSubmit={loadLearner}
-          className="mb-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-end"
-        >
-          <label className="block flex-1 text-sm font-semibold text-slate-700">
-            Learner ID
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={learnerId}
-              onChange={(event) => setLearnerId(event.target.value)}
-              placeholder="Enter your learner ID"
-              required
-              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 font-normal"
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="space-y-4">
+          {loading ? (
+            <LoadingPanel lines={4} label="Loading recommendation" />
+          ) : error ? (
+            <ErrorState
+              title="Recommendation is unavailable"
+              message={error}
+              hint="Check that the backend is running and the learner ID exists."
+              action={<Button size="sm" onClick={() => setReloadVersion((v) => v + 1)}>Try again</Button>}
             />
-          </label>
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60"
-          >
-            {loading ? "Loading…" : "Get recommendation"}
-          </button>
-        </form>
-        {learnerIdError && <p className="mb-5 text-sm text-red-700" role="alert">{learnerIdError}</p>}
+          ) : isEmpty ? (
+            <EmptyState
+              icon={<IconCompass size={22} />}
+              title="No evaluable problems available"
+              body="The backend has no problems with usable test cases to recommend right now."
+              action={<LinkButton href="/practice">Browse practice</LinkButton>}
+            />
+          ) : recommendation ? (
+            <Panel as="article" className="relative overflow-hidden p-5 sm:p-6">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-accent/10 blur-3xl"
+              />
+              <Eyebrow>Recommended next</Eyebrow>
+              <h2 className="mt-2 text-[22px] font-semibold leading-snug tracking-tight text-ink">
+                {recommendation.title}
+              </h2>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Badge tone={difficultyTone(recommendation.difficulty)}>{recommendation.difficulty}</Badge>
+                <Badge tone="accent">{recommendation.pattern}</Badge>
+                <Badge>Priority {recommendation.priority.toFixed(0)}</Badge>
+              </div>
+              <div className="mt-5 rounded-xl border border-line-soft bg-surface-raised/60 p-4">
+                <p className="text-[12.5px] font-semibold text-ink">Why this problem</p>
+                <p className="mt-1 text-[13px] leading-6 text-muted">{recommendation.reason}</p>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <LinkButton href={`/practice?problem_id=${recommendation.problem_id}`} variant="primary">
+                  Practise this problem
+                  <IconArrowRight size={16} />
+                </LinkButton>
+                <LinkButton href="/dashboard">View dashboard</LinkButton>
+              </div>
+            </Panel>
+          ) : null}
 
-        {!activeLearnerId && (
-          <section className="rounded-2xl border border-indigo-100 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-xl font-bold">Choose a learner to personalize practice</h2>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">
-              Use the learner ID saved on your practice page, or create a learner there first.
-            </p>
-            <Link href="/practice" className="mt-5 inline-flex rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
-              Go to practice
-            </Link>
-          </section>
-        )}
-        {activeLearnerId && loading && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-slate-600" role="status">
-            Loading your recommendation…
-          </div>
-        )}
-        {activeLearnerId && !loading && error && (
-          <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800" role="alert">
-            <h2 className="font-bold">Recommendation is unavailable</h2>
-            <p className="mt-1">{error}</p>
-            <p className="mt-2">Check that the backend is running and the learner ID exists.</p>
-          </section>
-        )}
-        {activeLearnerId && !loading && isEmpty && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-xl font-bold">No evaluable problems available</h2>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-600">
-              The backend has no available problems with usable test cases to recommend right now.
-            </p>
-            <Link href="/practice" className="mt-5 inline-flex rounded-lg border border-indigo-200 px-5 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">
-              Browse practice
-            </Link>
-          </section>
-        )}
-        {activeLearnerId && !loading && recommendation && (
-          <article className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
-            <div className="bg-gradient-to-r from-indigo-700 to-violet-700 p-6 text-white sm:p-8">
-              <p className="text-sm font-semibold uppercase tracking-wide text-indigo-100">
-                Recommended next
-              </p>
-              <h2 className="mt-2 text-2xl font-bold sm:text-3xl">{recommendation.title}</h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
-                  {recommendation.pattern}
-                </span>
-                <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-semibold">
-                  {recommendation.difficulty}
-                </span>
-              </div>
+          <Panel className="p-5">
+            <PanelHeader title="How the pick is made" description="Rule-based and deterministic; no machine learning" />
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {RULES.map((rule) => (
+                <div key={rule.label} className="rounded-lg border border-line-soft bg-surface-sunken/60 p-3">
+                  <dt className="text-[12.5px] font-semibold text-ink">{rule.label}</dt>
+                  <dd className="mt-0.5 text-[12.5px] leading-5 text-muted">{rule.body}</dd>
+                </div>
+              ))}
+            </dl>
+          </Panel>
+        </div>
+
+        <Panel className="p-5">
+          <PanelHeader
+            title="Mastery context"
+            description={progress ? "Your lowest-mastery patterns" : "From saved mastery records"}
+            compact
+          />
+          {loading ? (
+            <div className="space-y-3" aria-hidden>
+              <div className="skeleton h-3 w-2/3" />
+              <div className="skeleton h-3 w-1/2" />
             </div>
-            <div className="p-6 sm:p-8">
-              <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 p-4">
-                <h3 className="text-sm font-semibold text-indigo-950">Why this problem?</h3>
-                <p className="mt-2 text-sm leading-6 text-indigo-950">{recommendation.reason}</p>
-              </div>
-              <Link
-                href={`/practice?problem_id=${recommendation.problem_id}`}
-                className="mt-6 inline-flex rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
-              >
-                Practice this problem
-              </Link>
-            </div>
-          </article>
-        )}
+          ) : !progress ? (
+            <p className="text-[13px] text-muted">Progress could not be loaded for this learner.</p>
+          ) : weakestPatterns.length === 0 ? (
+            <p className="text-[13px] text-muted">
+              No attempts yet. The first recommendation is the easiest evaluable problem.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line-soft">
+              {weakestPatterns.map((pattern) => (
+                <li key={pattern.pattern_id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-center justify-between gap-3 text-[13px]">
+                    <span className="truncate font-medium text-ink">{pattern.pattern_name}</span>
+                    <span className="tabular-nums text-muted">{formatPercent(pattern.mastery_score)}</span>
+                  </div>
+                  <Meter
+                    className="mt-1.5"
+                    value={pattern.mastery_score}
+                    tone={masteryTone(pattern.mastery_score)}
+                    label={`${pattern.pattern_name} mastery`}
+                  />
+                  <p className="mt-1 text-[11.5px] text-faint">
+                    {pluralize(pattern.total_attempts, "attempt")} · {pattern.accuracy_percentage}% accuracy
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
-    </main>
+    </div>
   );
 }

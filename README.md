@@ -36,7 +36,7 @@ if (!(Test-Path .\venv\Scripts\python.exe)) { python -m venv venv }
 .\venv\Scripts\python.exe -m app.seed --sqlite .\codex-demo.sqlite3
 
 $env:DATABASE_URL = "sqlite:///./codex-demo.sqlite3"
-$env:JUDGE0_URL = ""          # leave blank until you have a judge (see below)
+$env:JUDGE0_URL = "https://ce.judge0.com" # set to "" only to disable evaluation
 .\venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
@@ -181,7 +181,7 @@ nothing. To enable evaluation, set in `backend/.env` (or the shell):
 | `JUDGE0_API_KEY` | Optional. Sent as `X-Auth-Token`; for `*.rapidapi.com` hosts it is sent as `X-RapidAPI-Key` automatically |
 | `JUDGE0_AUTH_HEADER` | Optional override for the header name |
 | `JUDGE0_TIMEOUT_SECONDS` | Per-request timeout (default 15) |
-| `JUDGE0_EVALUATION_TIMEOUT_SECONDS` | Budget for all test cases of one submission (default 35; keep below the frontend's 45 s request timeout) |
+| `JUDGE0_EVALUATION_TIMEOUT_SECONDS` | Budget for all test cases of one submission (default 90; the public CE queue can be delayed) |
 
 Submissions are created with `wait=false` and polled by token. Language IDs:
 Python `71`, Java `62`. Source is limited to 50,000 bytes, inputs to 10,000
@@ -194,25 +194,148 @@ Only `visible` cases are sent to the browser. Every expected output is checked
 by `backend/tests/test_seed_data.py` against the reference solutions in
 `backend/tests/reference_solutions.py`.
 
+The backend does not seed test cases automatically at startup. If an existing
+PostgreSQL database has problems with missing test cases, run the additive
+seeder from `backend` after confirming `DATABASE_URL` points to the intended
+database:
+
+```powershell
+.\venv\Scripts\python.exe -m app.seed --confirm
+```
+
+This creates missing catalog rows and fills test cases only for existing rows
+that have none; it does not overwrite configured cases or delete data. Of the
+50 catalog problems, the 37 with verified console-I/O contracts become
+evaluable. The remaining 13 intentionally stay not evaluable.
+
 ## Optional AI feedback
 
-Set `AI_API_URL`, `AI_API_KEY`, and `AI_MODEL` in `backend/.env` to enable an
-OpenAI-compatible chat completions service. For OpenAI, use
-`AI_API_URL=https://api.openai.com/v1`; the backend appends `/chat/completions`.
-The optional `AI_TIMEOUT_SECONDS` defaults to 8 seconds. Copy the blank values
-from `backend/.env.example`; keep the real key only in the backend environment
-and never add it to frontend variables or source control.
+Feedback is generated after Judge0 has produced a verdict. Without AI
+configuration, CodeX uses built-in rule-based feedback. With it, the backend
+calls an OpenAI-compatible **chat completions** API (`POST .../chat/completions`,
+`Authorization: Bearer <key>`, `response_format: {"type": "json_object"}`,
+`max_tokens: 700`) and reads `choices[0].message.content`.
 
-The backend sends the problem title and description, language, submitted code,
-Judge0 verdict, compiler/runtime diagnostic, actual output, and (when present)
-the failed test's input and expected output. The failed case stays in the
-backend feedback request and is not added to the browser response. The result
-panel labels the Judge0 result as verified and separately labels generated
-feedback as advisory. Only Judge0 determines `status` and `is_correct`; AI
-feedback cannot change acceptance, persistence, mastery, mistake tracking, or
-recommendations. If configuration is absent or the provider times out, fails,
-or returns malformed JSON/fields, rule-based feedback is saved and labelled
-`provider: rule_based`.
+| Variable | Meaning |
+| --- | --- |
+| `AI_API_URL` | Base URL such as `https://api.openai.com/v1` (the backend appends `/chat/completions`) or the full `.../chat/completions` endpoint |
+| `AI_API_KEY` | Provider API key. Backend only; never a `NEXT_PUBLIC_` variable |
+| `AI_MODEL` | Model id offered by that provider (default `gpt-4o-mini`, an OpenAI model) |
+| `AI_TIMEOUT_SECONDS` | Provider request timeout (default 8) |
+| `AI_MAX_TOKENS` | Optional output token limit (default 700). Thinking models count reasoning tokens against it |
+| `AI_REASONING_EFFORT` | Optional `reasoning_effort` (e.g. `low`); sent only when set, because non-reasoning models such as `gpt-4o-mini` reject it |
+
+AI is enabled only when both `AI_API_URL` and `AI_API_KEY` are non-empty. Any
+provider that offers an OpenAI-compatible chat completions endpoint with JSON
+mode can be used by setting its base URL and one of its model ids. Models that
+reject a parameter return an error, and CodeX then falls back to rule-based
+feedback with the reason.
+
+**Google Gemini** (verified live on 2026-10-22 with a free-tier key: probe and
+five real submissions returned `ai_generated`):
+
+```
+AI_API_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+AI_MODEL=gemini-3.5-flash-lite
+AI_API_KEY=<key from https://aistudio.google.com/apikey>
+```
+
+Use a current model id from https://ai.google.dev/gemini-api/docs/models.
+Gemini 2.5 models return `HTTP 404 NOT_FOUND ... no longer available to new users`
+for new projects, and `gemini-4-argon` has no free tier. Gemini 3 models always
+think; if the fallback reason says the reply stopped at the `AI_MAX_TOKENS`
+limit, raise `AI_MAX_TOKENS` or set `AI_REASONING_EFFORT=low`.
+
+### Configure a provider (PowerShell)
+
+Either keep the key for the current shell only (nothing is written to disk),
+then start the API from that same shell:
+
+```powershell
+cd backend
+$env:AI_API_URL = "https://api.openai.com/v1"
+$env:AI_MODEL = "gpt-4o-mini"
+$env:AI_API_KEY = [System.Net.NetworkCredential]::new("", (Read-Host "AI API key" -AsSecureString)).Password
+.\venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Or persist it in the git-ignored `backend/.env` (first remove any existing
+`AI_` lines so each variable appears once):
+
+```powershell
+cd backend
+$key = [System.Net.NetworkCredential]::new("", (Read-Host "AI API key" -AsSecureString)).Password
+Add-Content -Path .env -Encoding utf8 -Value "", "AI_API_URL=https://api.openai.com/v1", "AI_MODEL=gpt-4o-mini", "AI_TIMEOUT_SECONDS=8", "AI_API_KEY=$key"
+Remove-Variable key
+Select-String -Path .env -Pattern '^AI_' | ForEach-Object { $_.Line -replace '^(AI_API_KEY=).+', '$1<set>' }
+```
+
+The backend loads `backend/.env` by its absolute path (from any working
+directory) **once, at startup**. `--reload` watches `.py` files, not `.env`,
+so after saving `.env` stop uvicorn (Ctrl+C) and start it again. Variables
+already set in the shell take precedence over `backend/.env`, so
+`$env:AI_API_KEY = ""` disables AI for that shell, and a stale `$env:` value
+hides the file's value until you run `Remove-Item Env:AI_API_KEY`. Unit
+tests set `CODEX_SKIP_DOTENV=1` and never read `backend/.env`.
+
+### What the provider receives and returns
+
+The backend sends the problem title and description, language, submitted code
+(first 12,000 characters), Judge0 verdict, compiler/runtime diagnostic, actual
+output, and (when present) the failed test's input and expected output
+(each limited to 2,000 characters). The failed case is used only in this
+backend request and is not added to the browser response. The provider must
+return a JSON object with non-empty string fields `explanation`, `hint`, and
+`correction`, which may be wrapped in a Markdown code fence. CodeX trims these
+fields to 1,000, 500, and 1,000 characters and rejects provider responses
+larger than 64 KB.
+
+Only Judge0 determines `status` and `is_correct`; AI feedback cannot change
+acceptance, persistence, mastery, mistake tracking, or recommendations. A reply
+that names a verdict different from Judge0's is rejected. If the provider fails
+for any reason (401/403, 429, 5xx, timeout, empty or malformed content, missing
+fields), the submission is still saved with rule-based feedback, and the
+backend logs one warning that gives the reason without any secret, e.g.
+`AI feedback unavailable (provider rejected the credentials (HTTP 401)); using rule-based feedback`.
+
+### Telling AI feedback from the fallback
+
+| Where | AI feedback active | Rule-based fallback |
+| --- | --- | --- |
+| API `evaluation_details.feedback.provider` | `ai_generated` | `rule_based` |
+| Practice / mistakes result panel | **AI-generated feedback** + "Advisory" badge | **Rule-based feedback** + "Fallback" badge |
+| API `evaluation_details.feedback.fallback_reason` | absent | sanitized reason, also shown under the panel ("AI feedback was unavailable: …") |
+| Backend log | `INFO: app.services.feedback: AI feedback generated by <model>` | `AI feedback unavailable (<reason>)`, or `AI disabled: … not set in the backend process` once at the first submission |
+
+`GET /health/ai` shows the settings **as the running backend process sees
+them** (whether AI is enabled, any missing variables, the resolved endpoint, and
+the model; never the key). `GET /health/ai?probe=true` also makes one small,
+billable provider request and returns its sanitized result. Variables set with
+`$env:` exist only in that PowerShell window, so start uvicorn from the same
+window, and restart it after changing them (`--reload` does not reread the
+environment).
+
+| `fallback_reason` contains | Fix |
+| --- | --- |
+| `AI disabled: AI_API_KEY ... not set in the backend process` | The backend never received the variable; set it in the window that starts uvicorn, or in `backend/.env` |
+| `rejected the API key (HTTP 401 invalid_api_key)` | The key is wrong, revoked, or incomplete; create a new key and restart the backend |
+| `insufficient credits or quota (HTTP 429 insufficient_quota)` | Add billing or credits to the provider account |
+| `rate limit reached (HTTP 429 ...)` | Wait and retry (credit problems such as `credit_balance_exhausted` are reported as insufficient credits instead) |
+| `model '...' was not found (HTTP 404 model_not_found)` | Set `AI_MODEL` to a model your key can use |
+| `could not reach the provider` / `timed out` | Check `AI_API_URL`, network/proxy, or raise `AI_TIMEOUT_SECONDS` |
+
+Rule-based text is fixed per verdict (e.g. "Your output differed from the
+expected result on test N."). AI text refers to your specific code and output.
+To confirm AI is working live, start the API with AI configured, then run the live
+check (five real Judge0 runs and five billable provider requests):
+
+```powershell
+.\venv\Scripts\python.exe scripts\live_judge0_check.py --api http://127.0.0.1:8000 --expect-feedback ai_generated
+```
+
+The automated tests mock the provider. They check request building, parsing,
+and fallback behaviour, but they do **not** prove that a real provider works.
+Only a live run that returns `ai_generated` does that.
 
 ## Using PostgreSQL instead
 
@@ -248,9 +371,9 @@ npm run build
 
 | Check | Uses live services? |
 | --- | --- |
-| Backend unit tests (101) | No. Judge0 and the AI provider are mocked; databases are in-memory SQLite or throwaway temp files |
+| Backend unit tests (137) | No. Judge0 and the AI provider are mocked; databases are in-memory SQLite or throwaway temp files |
 | Frontend lint / build | No |
-| `backend/scripts/live_judge0_check.py` | **Yes.** Contacts the configured judge through the running API. See `docs/live-judge0-test-plan.md`; run only when you approve live testing |
+| `backend/scripts/live_judge0_check.py` | **Yes.** Contacts the configured judge, and the AI provider when the API has one configured, through the running API. `--expect-feedback ai_generated\|rule_based` asserts the feedback source. See `docs/live-judge0-test-plan.md`; run only when you approve live testing |
 
 ## Interpreting common errors
 
@@ -264,7 +387,7 @@ npm run build
 | `502 Evaluation Error: ... did not return a result before the evaluation timeout` | Judge queue too slow for the configured budget |
 | `422 Supported languages are python and java` | Unsupported language |
 | `404 User not found` / `Problem not found` | Bad IDs |
-| Frontend: "The request timed out before the judge finished" | 45 s client timeout; the backend may still have saved the attempt, so wait before retrying |
+| Frontend: "The request timed out before the judge finished" | 130 s client timeout; the backend may still have saved the attempt, so wait before retrying |
 
 ## Security notes
 

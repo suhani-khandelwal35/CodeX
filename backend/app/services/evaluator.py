@@ -91,7 +91,7 @@ def evaluate_submission(problem, source_code: str, language: str) -> Evaluation:
     if not base_url:
         raise EvaluationUnavailable("Evaluation is unavailable: configure JUDGE0_URL")
 
-    deadline = time.monotonic() + float(os.getenv("JUDGE0_EVALUATION_TIMEOUT_SECONDS", "35"))
+    deadline = time.monotonic() + float(os.getenv("JUDGE0_EVALUATION_TIMEOUT_SECONDS", "90"))
     for index, case in enumerate(cases, start=1):
         if time.monotonic() >= deadline:
             raise EvaluationError("The evaluation exceeded its overall time limit")
@@ -163,13 +163,13 @@ def _judge(code, language, input_data, base_url, deadline=None):
 
 
 def _poll(base_url, token, headers, deadline=None):
-    poll_deadline = time.monotonic() + float(os.getenv("JUDGE0_TIMEOUT_SECONDS", "15"))
-    if deadline is not None:
-        poll_deadline = min(poll_deadline, deadline)
+    poll_timeout = float(os.getenv("JUDGE0_TIMEOUT_SECONDS", "15"))
+    poll_deadline = deadline if deadline is not None else time.monotonic() + poll_timeout
     while time.monotonic() < poll_deadline:
         request = Request(f"{base_url}/submissions/{quote(str(token), safe='')}?base64_encoded=false", headers=headers)
         try:
-            with urlopen(request, timeout=min(3, max(0.1, poll_deadline - time.monotonic()))) as response:
+            timeout = min(3, poll_timeout, max(0.1, poll_deadline - time.monotonic()))
+            with urlopen(request, timeout=timeout) as response:
                 result = json.loads(response.read(MAX_OUTPUT_BYTES + 1))
         except HTTPError as exc:
             raise EvaluationError(_http_error_message(exc)) from exc
